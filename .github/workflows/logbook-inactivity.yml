@@ -1,0 +1,40 @@
+name: logbook-inactivity
+
+on:
+  schedule:
+    - cron: '0 12 15,30 * *'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: main
+
+    - name: Check for logbook update history
+      id: check
+      run: |
+        UPDATED=$(git log --since="2 weeks ago" --pretty=oneline -- logbook/logbook.md | wc -l)
+        echo "logbook.md update count: $UPDATED"
+        if [ "$UPDATED" -eq 0 ]; then
+          echo "needs_issue=true" >> $GITHUB_OUTPUT
+          echo "## ⚠️ logbook.md inactivity detected" > issue.md
+          echo "" >> issue.md
+          echo "Please ensure you are familiar with and comply with all [IRP-specific academic integrity rules and expectations](https://ese-msc.github.io/irp/academic-integrity.html)." >> issue.md
+        fi
+
+    - name: Create issue if inactivity detected
+      if: steps.check.outputs.needs_issue == 'true'
+      uses: peter-evans/create-issue-from-file@v5
+      with:
+        title: logbook.md inactivity detected
+        content-filepath: ./issue.md
+        labels: logbook-inactivity

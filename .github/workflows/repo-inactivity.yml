@@ -1,0 +1,44 @@
+name: repo-inactivity
+
+on:
+  schedule:
+    - cron: '0 12 * * 5'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: main
+        fetch-tags: true
+
+    - name: Fetch all branches
+      run: git fetch --all
+
+    - name: Check for recent activity in any branch
+      id: check
+      run: |
+        RECENT_COMMITS=$(git log --all --since="7 days ago" --pretty=oneline | wc -l)
+        echo "Recent commit count: $RECENT_COMMITS"
+        if [ "$RECENT_COMMITS" -eq 0 ]; then
+          echo "needs_issue=true" >> $GITHUB_OUTPUT
+          echo "## ⚠️ Repository inactivity detected" > issue.md
+          echo "" >> issue.md
+          echo "Please ensure you are familiar with and comply with all [IRP-specific academic integrity rules and expectations](https://ese-msc.github.io/irp/academic-integrity.html)." >> issue.md
+        fi
+
+    - name: Create issue if inactivity detected
+      if: steps.check.outputs.needs_issue == 'true'
+      uses: peter-evans/create-issue-from-file@v5
+      with:
+        title: Repository inactivity detected
+        content-filepath: ./issue.md
+        labels: repo-inactivity
